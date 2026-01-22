@@ -48,9 +48,12 @@ function encryptLink(link) {
   // 将链接和时间窗口组合
   const data = `${link}::${timeWindow}`;
   
+  // 使用 PBKDF2 生成密钥（匹配 CryptoJS：1 次迭代，SHA1）
+  const key = crypto.pbkdf2Sync(SECRET_KEY, 'salt', 1, 32, 'sha1');  // 32 字节用于 AES-256
+  
   // 使用 AES-256-CBC 加密
   const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv('aes-256-cbc', crypto.scryptSync(SECRET_KEY, 'salt', 32), iv);
+  const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
   
   let encrypted = cipher.update(data, 'utf8', 'hex');
   encrypted += cipher.final('hex');
