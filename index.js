@@ -1,6 +1,6 @@
-const express = require('express');
 const crypto = require('crypto');
-const app = express();
+const http = require('http');
+const url = require('url');
 
 // 404 页面内容
 const notFoundHtml = `
@@ -48,12 +48,9 @@ function encryptLink(link) {
   // 将链接和时间窗口组合
   const data = `${link}::${timeWindow}`;
   
-  // 使用 PBKDF2 生成密钥（匹配 CryptoJS：1 次迭代，SHA1）
-  const key = crypto.pbkdf2Sync(SECRET_KEY, 'salt', 1, 32, 'sha1');  // 32 字节用于 AES-256
-  
   // 使用 AES-256-CBC 加密
   const iv = crypto.randomBytes(16);
-  const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+  const cipher = crypto.createCipheriv('aes-256-cbc', crypto.scryptSync(SECRET_KEY, 'salt', 32), iv);
   
   let encrypted = cipher.update(data, 'utf8', 'hex');
   encrypted += cipher.final('hex');
@@ -111,19 +108,27 @@ function isSuspiciousUA(ua) {
 }
 
 // =============================================
-// 主路由
+// 原生 http 服务器
 // =============================================
-app.get('/:path?', (req, res) => {
-  const path = req.params.path;
-  
+const server = http.createServer((req, res) => {
+  const parsedUrl = url.parse(req.url, true);
+  const path = (parsedUrl.pathname || '/').replace(/^/+|/+$/g, '') || null;
+
+  // 只处理 GET 请求
+  if (req.method !== 'GET') {
+    res.statusCode = 404;
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.end(notFoundHtml);
+  }
+
   if (!path) {
-    return res.status(404).send(notFoundHtml);
+    return res.statusCode = 404, res.setHeader('Content-Type', 'text/html; charset=utf-8'), res.end(notFoundHtml);
   }
 
   const group = groups[path];
   
   if (!group) {
-    return res.status(404).send(notFoundHtml);
+    return res.statusCode = 404, res.setHeader('Content-Type', 'text/html; charset=utf-8'), res.end(notFoundHtml);
   }
 
   // 服务端安全检查
@@ -135,11 +140,11 @@ app.get('/:path?', (req, res) => {
   const ua = req.headers['user-agent'] || '';
   
   if (isSuspiciousUA(ua)) {
-    return res.status(404).send(notFoundHtml);
+    return res.statusCode = 404, res.setHeader('Content-Type', 'text/html; charset=utf-8'), res.end(notFoundHtml);
   }
   
   if (!checkRateLimit(ip)) {
-    return res.status(429).send(notFoundHtml);
+    return res.statusCode = 429, res.setHeader('Content-Type', 'text/html; charset=utf-8'), res.end(notFoundHtml);
   }
 
   const isAndroid = /android/i.test(ua);
@@ -153,7 +158,6 @@ app.get('/:path?', (req, res) => {
     const httpsLink = `https://t.me/+${group.inviteCode}`;
     const encryptedLink = encryptLink(httpsLink);
     
-    // 👇 这里已经添加了 crypto-js 的引用
     const desktopHtml = `
 <!DOCTYPE html>
 <html>
@@ -239,7 +243,9 @@ app.get('/:path?', (req, res) => {
 </html>
     `;
     
-    return res.send(desktopHtml);
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.end(desktopHtml);
   }
 
   // ========================================
@@ -265,7 +271,6 @@ app.get('/:path?', (req, res) => {
     `;
   }
 
-  // 👇 这里也已经添加了 crypto-js 的引用
   const html = `
 <!DOCTYPE html>
 <html lang="zh-CN">
@@ -450,14 +455,16 @@ ${deviceTipHtml}
 </html>
   `;
 
-  res.send(html);
+  res.statusCode = 200;
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.end(html);
 });
 
-module.exports = app;
+module.exports = server;
 
 if (require.main === module) {
   const port = process.env.PORT || 3000;
-  app.listen(port, '0.0.0.0', () => {
+  server.listen(port, '0.0.0.0', () => {
     console.log(`========================================`);
     console.log(`🚀 服务已启动！`);
     console.log(`========================================`);
