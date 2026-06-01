@@ -19,9 +19,9 @@ const groups = {
     name: '扫楼打胶共享',
     inviteCode: process.env.SAOLOU_INVITE_CODE || '2TskoPhkURkwMWE5'
   },
-  'default': {
-    name: '夜半客',
-    inviteCode: process.env.DEFAULT_INVITE_CODE || '0X28B1v7veI0MjMx'
+  'ybk66': {
+    name: '夜半客交流群',
+    inviteCode: process.env.YBK66_INVITE_CODE || 'PIwXsaTEkfsxMWY1'
   }
 };
 
